@@ -74,7 +74,7 @@ class GameRepository @Inject constructor(
             // Check the envelope type
             when (event.type) {
 
-                "STATE_UPDATE" -> {
+                EventType.UPDATE -> {
                     // Tell Gson to convert the raw JsonElement into a RoomStatePayload
                     val state = gson.fromJson(event.payload, BaseRoom::class.java)
 
@@ -82,7 +82,7 @@ class GameRepository @Inject constructor(
                     _roomState.value = state
                     Log.d("GameRepository", "Lobby updated! Players currently in room: ${state.players.size}")
                 }
-                "DRAW" -> {
+                EventType.DRAW -> {
                     val payload = event.payload
 
                     val pointsArray = payload.getAsJsonArray("points")
@@ -106,7 +106,7 @@ class GameRepository @Inject constructor(
                         _paths.emit(drawnPath)
                     }
                 }
-                "CHAT" -> {
+                EventType.CHAT  -> {
                     val chat = Chat(
                         message = event.payload.get("message").asString,
                         senderId = event.senderId
@@ -115,7 +115,7 @@ class GameRepository @Inject constructor(
                         _messages.emit(chat)
                     }
                 }
-                "TURN_START" ->{
+                EventType.TURN_START ->{
                     // Tell Gson to convert the raw JsonElement into a RoomStatePayload
                     val payload = gson.fromJson(event.payload, TurnStartPayload::class.java)
                     _turnEndPayload.value = null
@@ -123,7 +123,7 @@ class GameRepository @Inject constructor(
                     _turnStartPayload.value = payload
                 }
 
-                "TURN_END" ->{
+                EventType.TURN_END  ->{
                     // Tell Gson to convert the raw JsonElement into a RoomStatePayload
                     val state = gson.fromJson(event.payload, TurnEndPayload::class.java)
 
@@ -131,12 +131,12 @@ class GameRepository @Inject constructor(
                     _turnEndPayload.value = state
                 }
 
-                "GAME_OVER" -> {
+                EventType.GAME_OVER  -> {
                     // Tell Gson to convert the raw JsonElement into a RoomStatePayload
 //                    val scores = gson.fromJson(event.payload, object : TypeToken<Map<String, Int>>() {}.type)
                 }
 
-                "TIMER" -> {
+                EventType.TIMER-> {
                     val payload = gson.fromJson(event.payload, TimerPayload::class.java)
                     _timer.value = payload.remaining
                 }

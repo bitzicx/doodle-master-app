@@ -6,9 +6,11 @@ import androidx.lifecycle.viewModelScope
 import com.bitzicx.doodlemaster.BaseRoom
 import com.bitzicx.doodlemaster.Chat
 import com.bitzicx.doodlemaster.DrawnPath
+import com.bitzicx.doodlemaster.EventType
 import com.bitzicx.doodlemaster.GameEvent
 import com.bitzicx.doodlemaster.GameRepository
 import com.bitzicx.doodlemaster.Player
+import com.bitzicx.doodlemaster.RoomStatus
 import com.bitzicx.doodlemaster.TurnEndPayload
 import com.bitzicx.doodlemaster.TurnStartPayload
 import com.bitzicx.doodlemaster.UserRepository
@@ -58,14 +60,14 @@ class GameRoomScreenViewModel @Inject constructor(
 
 
 
-    val roomStatus: StateFlow<String> = gameRepository.roomState
+    val roomStatus: StateFlow<RoomStatus> = gameRepository.roomState
         .map { room ->
-            room?.status ?: "waiting"
+            room?.status ?: RoomStatus.WAITING
         }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = "waiting"
+            initialValue = RoomStatus.WAITING
         )
 
 
@@ -93,7 +95,7 @@ class GameRoomScreenViewModel @Inject constructor(
     fun startGame() {
         // We send an empty JsonObject because the server just needs to see the "type"
         val event = GameEvent(
-            type = "START_GAME",
+            type = EventType.START_GAME,
             payload = JsonObject()
         )
         gameRepository.sendEvent(event)

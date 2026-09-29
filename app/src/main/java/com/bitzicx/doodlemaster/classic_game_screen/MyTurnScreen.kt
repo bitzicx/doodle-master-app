@@ -21,7 +21,9 @@
     import androidx.compose.foundation.shape.CircleShape
     import androidx.compose.foundation.shape.RoundedCornerShape
     import androidx.compose.material.icons.Icons
+    import androidx.compose.material.icons.filled.CleaningServices
     import androidx.compose.material.icons.filled.CommentsDisabled
+    import androidx.compose.material.icons.filled.Edit
     import androidx.compose.material.icons.filled.Pinch
     import androidx.compose.material3.Icon
     import androidx.compose.material3.IconButton
@@ -269,7 +271,7 @@
 
                 }) {
                     Icon(
-                        imageVector = Icons.Default.Pinch,
+                        imageVector = Icons.Default.Edit,
                         contentDescription = "Pen"
                     )
                 }
@@ -278,7 +280,7 @@
                     currentStrokeWidth = 20f
                 }) {
                     Icon(
-                        imageVector = Icons.Default.CommentsDisabled,
+                        imageVector = Icons.Default.CleaningServices ,
                         contentDescription = "Pen"
                     )
                 }

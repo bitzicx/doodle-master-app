@@ -25,7 +25,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bitzicx.doodlemaster.ConnectionState
+import com.bitzicx.doodlemaster.EventType
 import com.bitzicx.doodlemaster.GameEvent
+import com.bitzicx.doodlemaster.RoomStatus
 import com.bitzicx.doodlemaster.toJsonObject
 
 @Composable
@@ -59,7 +61,7 @@ fun GameRoomScreen(
     }
 
     LaunchedEffect(roomState?.status) {
-        if (roomState?.status == "finished") {
+        if (roomState?.status == RoomStatus.FINISHED) {
             gameOver = true
         }
     }
@@ -69,13 +71,13 @@ fun GameRoomScreen(
     LaunchedEffect(turnStart) {
         viewModel.clearPath()
 
-        if (roomState?.status == "RUNNING" && turnStart != null) {
+        if (roomState?.status == RoomStatus.STARTED && turnStart != null) {
             showTurnStartBanner = true
         }
     }
 
     LaunchedEffect(turnEnd) {
-        if (roomState?.status == "RUNNING" && turnEnd != null) {
+        if (roomState?.status == RoomStatus.STARTED && turnEnd != null) {
             showTurnEndBanner = true
         }
     }
@@ -109,7 +111,7 @@ fun GameRoomScreen(
     Box(modifier = Modifier.fillMaxSize()) {
 
 
-        if (roomState?.status == "RUNNING") {
+        if (roomState?.status == RoomStatus.STARTED) {
             val isDrawer = roomState?.currentTurn == playerId
             if (isDrawer) {
                 MyTurnScreen(
@@ -119,7 +121,7 @@ fun GameRoomScreen(
                     messages
                 ) { path ->
                     val event = GameEvent(
-                        type = "DRAW",
+                        type = EventType.DRAW,
                         payload = path.toJsonObject()
                     )
                     viewModel.sendEvent(event)
@@ -136,13 +138,13 @@ fun GameRoomScreen(
 
                 ) { message ->
                     val event = GameEvent(
-                        type = "CHAT",
+                        type = EventType.CHAT,
                         payload = message.toJsonObject()
                     )
                     viewModel.sendEvent(event)
                 }
             }
-        } else if(roomState?.status == "waiting") {
+        } else if(roomState?.status == RoomStatus.WAITING) {
             WaitingRoomScreen(
                 roomState,
                 playerId

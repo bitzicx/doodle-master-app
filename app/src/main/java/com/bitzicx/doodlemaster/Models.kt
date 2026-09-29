@@ -1,14 +1,9 @@
 package com.bitzicx.doodlemaster
 
-import android.R
-import android.crypto.hpke.Sender
 import androidx.compose.ui.geometry.Offset
-import com.google.gson.annotations.SerializedName
 import androidx.compose.ui.graphics.Color
 import com.google.gson.JsonObject
-import org.json.JSONArray
-import org.json.JSONObject
-
+import com.google.gson.annotations.SerializedName
 
 
 data class DrawnPath(
@@ -17,15 +12,28 @@ data class DrawnPath(
     val strokeWidth: Float = 10f
 )
 
-object EventType{
-    const val DRAW = "DRAW"
-    const val CHAT = "CHAT"
-    const val STATE_UPDATE = "STATE_UPDATE"
+enum class RoomStatus(val value: String) {
+    @SerializedName("waiting") WAITING("waiting"),
+    @SerializedName("started") STARTED("started"),
+    @SerializedName("finished") FINISHED("finished")
+}
+
+enum class EventType(val value: String) {
+    @SerializedName("draw") DRAW("draw"),
+    @SerializedName("chat") CHAT("chat"),
+    @SerializedName("state_update") UPDATE("state_update"),
+    @SerializedName("turn_start") TURN_START("turn_start"),
+    @SerializedName("turn_end") TURN_END("turn_end"),
+    @SerializedName("game_over") GAME_OVER("game_over"),
+    @SerializedName("guess") GUESS("guess"),
+    @SerializedName("timer") TIMER("timer"),
+    @SerializedName("correct_guess") CORRECT_GUESS("correct_guess"),
+    @SerializedName("start_game") START_GAME("start_game")
 }
 
 
 data class GameEvent(
-    val type: String,
+    val type: EventType,
     @SerializedName("sender_id") val senderId: String = "",
     val payload: JsonObject
 )
@@ -51,7 +59,7 @@ data class BaseRoom(
     val id: String,
     val type: String,
     val host: String,
-    val status: String,
+    val status: RoomStatus,
     val players: Map<String, Player>,
 
     @SerializedName("current_turn")

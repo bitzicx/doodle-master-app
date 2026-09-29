@@ -24,7 +24,7 @@ class GameViewModel: ViewModel() {
 
     private fun handleServerEvent(event: GameEvent){
         when(event.type){
-            EventType.STATE_UPDATE ->{
+            EventType.UPDATE ->{
                 currentScreen.value = "GAME"
             }
 
@@ -36,6 +36,9 @@ class GameViewModel: ViewModel() {
                 // later for later
             }
 
+            else -> {
+
+            }
         }
     }
 }
