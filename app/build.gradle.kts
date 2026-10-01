@@ -8,6 +8,7 @@ plugins {
 
 android {
     namespace = "com.bitzicx.doodlemaster"
+
     compileSdk {
         version = release(37)
     }
@@ -16,14 +17,26 @@ android {
         applicationId = "com.bitzicx.doodlemaster"
         minSdk = 24
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionName = (project.findProperty("appVersionName") as String?) ?: "1.0.0-local"
+        versionCode = (project.findProperty("appVersionCode") as String?)?.toInt() ?: 1
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+    signingConfigs{
+        create("release"){
+            val path = System.getenv("KEYSTORE_PATH")
+            if(path != null){
+                storeFile = file(path)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             optimization {
                 enable = false
             }
@@ -36,6 +49,8 @@ android {
     buildFeatures {
         compose = true
     }
+
+
 }
 
 dependencies {
