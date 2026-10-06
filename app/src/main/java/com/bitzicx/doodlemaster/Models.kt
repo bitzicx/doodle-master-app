@@ -1,10 +1,28 @@
 package com.bitzicx.doodlemaster
 
+import android.provider.MediaStore
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import com.google.gson.JsonObject
 import com.google.gson.annotations.SerializedName
 
+
+data class ReleaseResponse(
+    @SerializedName("tag_name") val tagName: String,
+    val body: String?,
+    val assets: List<ReleaseAsset>
+)
+
+data class ReleaseAsset(
+    val name: String,
+    @SerializedName("browser_download_url") val downloadUrl: String
+)
+
+data class UpdateInfo(
+    val versionName: String,
+    val notes: String,
+    val downloadUrl: String
+)
 
 data class DrawnPath(
     val points: List<Offset>,

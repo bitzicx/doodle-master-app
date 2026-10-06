@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bitzicx.doodlemaster.R
+import com.bitzicx.doodlemaster.update.UpdateDialog
 
 
 @Composable
@@ -77,6 +78,9 @@ fun MainScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
+
+        UpdateDialog()
+
         Image(
             painter = painterResource(id = R.drawable.mainscreenpostertemp),
             contentDescription = "main poster",
