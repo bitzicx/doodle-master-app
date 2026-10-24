@@ -52,13 +52,32 @@ class GameRoomScreenViewModel @Inject constructor(
     init {
         collectPaths()
         collectMessages()
+        collectGameEvents()
     }
 
     fun clearPath(){
         _paths.clear()
     }
 
+    private fun collectGameEvents() {
+        viewModelScope.launch {
+            gameRepository.gameEvents.collect { event ->
+                when (event.type) {
+                    EventType.UNDO -> {
+                        if (_paths.isNotEmpty()) {
+                            _paths.removeAt(paths.size-1)
+                        }
+                    }
+                    EventType.CLEAR -> {
+                        _paths.clear()
+                    }
+                    else -> {
 
+                    }
+                }
+            }
+        }
+    }
 
     val roomStatus: StateFlow<RoomStatus> = gameRepository.roomState
         .map { room ->
@@ -122,6 +141,7 @@ class GameRoomScreenViewModel @Inject constructor(
             }
         }
     }
+
 
 }
 

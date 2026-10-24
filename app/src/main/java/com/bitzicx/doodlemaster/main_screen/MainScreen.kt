@@ -73,9 +73,6 @@ fun MainScreen(
     var showSearchDialog by remember {mutableStateOf(false)}
     var roomid: String by remember { mutableStateOf("") }
 
-    LaunchedEffect(Unit) {
-
-    }
 
     Box(modifier = Modifier.fillMaxSize()) {
 

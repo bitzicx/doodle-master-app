@@ -75,7 +75,11 @@ fun AppNavigation(){
             GameRoomScreen(
                 onNavigateToMainScreen = {
                     navController.navigate(Screen.MainScreen.route) {
-                        navController.popBackStack(Screen.MainScreen.route, inclusive = false)                    }
+                        popUpTo(Screen.MainScreen.route){
+                            inclusive = true
+                        }
+                        launchSingleTop = true
+                    }
                 }
             )
         }

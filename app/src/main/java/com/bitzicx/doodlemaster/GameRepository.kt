@@ -141,6 +141,18 @@ class GameRepository @Inject constructor(
                     _timer.value = payload.remaining
                 }
 
+                EventType.UNDO -> {
+                    repositoryScope.launch {
+                        _gameEvents.emit(event)
+                    }
+                }
+
+                EventType.CLEAR ->{
+                    repositoryScope.launch {
+                        _gameEvents.emit(event)
+                    }
+                }
+
                 else -> {
                     Log.w("GameRepository", "Received unknown event type: ${event.type}")
                 }
@@ -163,6 +175,9 @@ class GameRepository @Inject constructor(
         networkManager.connect(roomId, username, playerId)
     }
     fun disconnect(){
+        _roomState.value = null
+        _turnStartPayload.value = null
+        _turnEndPayload.value = null
         networkManager.disconnect()
     }
 

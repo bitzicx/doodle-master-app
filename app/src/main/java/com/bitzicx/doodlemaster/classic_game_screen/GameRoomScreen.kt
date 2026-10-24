@@ -29,6 +29,8 @@ import com.bitzicx.doodlemaster.EventType
 import com.bitzicx.doodlemaster.GameEvent
 import com.bitzicx.doodlemaster.RoomStatus
 import com.bitzicx.doodlemaster.toJsonObject
+import com.google.gson.Gson
+import kotlinx.serialization.json.JsonObject
 
 @Composable
 fun GameRoomScreen(
@@ -118,14 +120,31 @@ fun GameRoomScreen(
                     playersList,
                     turnStart?.word.orEmpty(),
                     remainingTime,
-                    messages
-                ) { path ->
-                    val event = GameEvent(
-                        type = EventType.DRAW,
-                        payload = path.toJsonObject()
-                    )
-                    viewModel.sendEvent(event)
-                }
+                    messages,
+                    returnPath =  { path ->
+                        val event = GameEvent(
+                            type = EventType.DRAW,
+                            payload = path.toJsonObject()
+                        )
+                        viewModel.sendEvent(event)
+                    },
+                    onUndo = {
+                        val event = GameEvent(
+                            type = EventType.UNDO,
+                            payload = com.google.gson.JsonObject()
+                        )
+                        viewModel.sendEvent(event)
+
+                    },
+                    onClear = {
+                        val event = GameEvent(
+                            type = EventType.CLEAR,
+                            payload = com.google.gson.JsonObject()
+                        )
+                        viewModel.sendEvent(event)
+
+                    }
+                )
             } else {
                 OtherPlayerTurnScreen(
                     playersList,
@@ -201,6 +220,16 @@ fun GameRoomScreen(
     }
 
 
+}
+
+@Composable
+fun ClearPath() {
+    TODO("Not yet implemented")
+}
+
+@Composable
+fun Clear() {
+    TODO("Not yet implemented")
 }
 
 @Composable

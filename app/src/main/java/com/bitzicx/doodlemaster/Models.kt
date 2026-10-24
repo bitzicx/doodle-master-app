@@ -46,7 +46,11 @@ enum class EventType(val value: String) {
     @SerializedName("guess") GUESS("guess"),
     @SerializedName("timer") TIMER("timer"),
     @SerializedName("correct_guess") CORRECT_GUESS("correct_guess"),
-    @SerializedName("start_game") START_GAME("start_game")
+    @SerializedName("start_game") START_GAME("start_game"),
+
+    @SerializedName("undo") UNDO("undo"),
+
+    @SerializedName("clear") CLEAR("clear")
 }
 
 

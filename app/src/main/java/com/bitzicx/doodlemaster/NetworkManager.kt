@@ -1,8 +1,6 @@
 package com.bitzicx.doodlemaster
 
 import android.util.Log
-import okhttp3.WebSocket
-import okhttp3.WebSocketListener
 import com.google.gson.Gson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,10 +15,11 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
 import okio.IOException
 import kotlin.math.pow
 import kotlin.time.Duration.Companion.milliseconds
-
 
 class NetworkManager(private val onEventRaceived: (GameEvent) -> Unit): WebSocketListener(){
 
@@ -28,7 +27,9 @@ class NetworkManager(private val onEventRaceived: (GameEvent) -> Unit): WebSocke
     private val gson = Gson()
 
     private val client = OkHttpClient()
-    private val serverUrl = "doodlemaster-backend.onrender.com"
+    private val serverUrl = BuildConfig.SERVER_HOST
+    private val httpScheme = if(BuildConfig.USE_TLS) "https" else "http"
+    private val wsScheme = if(BuildConfig.USE_TLS) "wss" else "ws"
 
 
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
@@ -39,14 +40,14 @@ class NetworkManager(private val onEventRaceived: (GameEvent) -> Unit): WebSocke
     private var lastRoomId = ""
     private var lastPlayerId = ""
     private var lastUsername = ""
+
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     // creating room,
     // the server will automatically general the room ID , 4-6 char string
     suspend fun createRoom(username: String, playerId: String): String?{
         return withContext(Dispatchers.IO){
 
-            val requestUrl = "https://$serverUrl/create"
-
+            val requestUrl = "$httpScheme://$serverUrl/create"
 
             val jsonBody = gson.toJson(mapOf("username" to username, "playerId" to playerId))
             val requestBody = jsonBody.toRequestBody("application/json; charset=utf-8".toMediaType())
@@ -85,7 +86,7 @@ class NetworkManager(private val onEventRaceived: (GameEvent) -> Unit): WebSocke
         lastPlayerId = playerId
         lastUsername = username
         // Attach &playerId=$playerId to the end of the URL
-        val url = "wss://$serverUrl/ws?roomId=$roomId&username=$username&playerId=$playerId"
+        val url = "$wsScheme://$serverUrl/ws?roomId=$roomId&username=$username&playerId=$playerId"
 
         val request = Request.Builder().url(url).build()
 
@@ -147,7 +148,7 @@ class NetworkManager(private val onEventRaceived: (GameEvent) -> Unit): WebSocke
                     "playerId" to lastPlayerId
                 ))
                 val request = Request.Builder()
-                    .url("https://$serverUrl/join")
+                    .url("$httpScheme://$serverUrl/join")
                     .post(jsonBody.toRequestBody("application/json".toMediaType()))
                     .build()
                 val response = client.newCall(request).execute()
@@ -188,10 +189,10 @@ class NetworkManager(private val onEventRaceived: (GameEvent) -> Unit): WebSocke
     }
 
     suspend fun quickJoinRoom(playerId: String, username: String):String? {
+            Log.d("Host URL ", serverUrl)
         return withContext(Dispatchers.IO){
 
-            val requestUrl = "http://$serverUrl/quickjoin"
-
+            val requestUrl = "$httpScheme://$serverUrl/quickjoin"
 
             val jsonBody = gson.toJson(mapOf("username" to username, "playerId" to playerId))
             val requestBody = jsonBody.toRequestBody("application/json; charset=utf-8".toMediaType())

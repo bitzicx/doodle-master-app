@@ -34,11 +34,22 @@ android {
         }
     }
 
+    buildFeatures{
+        buildConfig = true
+        compose = true
+    }
+
     buildTypes {
+        debug{
+            buildConfigField("String", "SERVER_HOST", "\"192.168.100.239:8080\"")
+            buildConfigField("boolean", "USE_TLS", "false")
+        }
         release {
+            buildConfigField("String", "SERVER_HOST", "\"doodlemaster-backend.onrender.com\"")
+            buildConfigField("boolean", "USE_TLS", "true")
             signingConfig = signingConfigs.getByName("release")
             optimization {
-                enable = false
+                enable = true
             }
         }
     }
@@ -46,10 +57,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    buildFeatures {
-        compose = true
-    }
-
 
 }
 
