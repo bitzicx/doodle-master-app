@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.9.4
+
+- Fix CI Android SDK setup by selecting the tested command-line tools version and installing platform-tools without the retired `tools` package.
+- Includes all Android stability fixes from v0.9.3 below. Backend compatibility remains v0.1.0.
+
 ## v0.9.3
 
 Compatible with `doodleMaster-backend` tag `v0.1.0`.
