@@ -63,6 +63,7 @@ fun OtherPlayerTurnScreen(
     paths: List<DrawnPath>,
     messages: List<Chat>,
     wordMask: String,
+    enabled: Boolean = true,
     onSendMessage: (String) -> Unit
 
 ) {
@@ -246,6 +247,8 @@ fun OtherPlayerTurnScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             BasicTextField(
+                enabled = enabled,
+                singleLine = true,
                 value = guessWord,
                 onValueChange = { guessWord = it },
                 modifier = Modifier
@@ -256,11 +259,10 @@ fun OtherPlayerTurnScreen(
                     fontSize = 15.sp
                 ),
                 decorationBox = { innerTextField ->
-                        Text(
-                            wordMask,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                    if (guessWord.isEmpty()) {
+                        Text(wordMask, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium)
+                    }
 
                     innerTextField()
                 },
@@ -269,7 +271,7 @@ fun OtherPlayerTurnScreen(
                 ),
                 keyboardActions = KeyboardActions(
                     onSend = {
-                        if (guessWord.isNotBlank()) {
+                        if (enabled && guessWord.isNotBlank()) {
                             onSendMessage(guessWord)
                             guessWord = ""
                         }
@@ -286,8 +288,8 @@ fun OtherPlayerTurnScreen(
                         if (guessWord.isNotBlank()) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.surfaceVariant
                     )
-                    .clickable {
-                        if (guessWord.isNotBlank()) {
+                    .clickable(enabled = enabled && guessWord.isNotBlank()) {
+                        if (enabled && guessWord.isNotBlank()) {
                             onSendMessage(guessWord)
                             guessWord = ""
                         }

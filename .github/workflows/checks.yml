@@ -1,0 +1,53 @@
+name: Android checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: android-actions/setup-android@v3
+      - uses: actions/checkout@v4
+        with:
+          repository: bitzicx/doodleMaster-backend
+          ref: v0.1.0
+          path: backend-compat
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.x'
+          cache-dependency-path: backend-compat/go.sum
+      - name: Start compatible backend
+        run: |
+          cd backend-compat
+          go build -o "$RUNNER_TEMP/doodle-backend" ./cmd/server
+          PORT=3001 "$RUNNER_TEMP/doodle-backend" > "$RUNNER_TEMP/backend.log" 2>&1 &
+          echo "BACKEND_PID=$!" >> "$GITHUB_ENV"
+          for attempt in {1..30}; do
+            if curl --fail --silent http://localhost:3001/health; then break; fi
+            sleep 1
+          done
+          curl --fail http://localhost:3001/health
+      - name: Test, lint, and build Android app
+        run: ./gradlew testDebugUnitTest lintDebug assembleDebug -PbackendUrl=http://localhost:3001/ --console=plain
+      - name: Upload check reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-check-reports
+          path: app/build/reports
+      - name: Stop backend
+        if: always()
+        run: |
+          if [ -n "${BACKEND_PID:-}" ]; then kill "$BACKEND_PID" || true; fi

@@ -1,15 +1,17 @@
 package com.bitzicx.doodlemaster
 
-import android.util.Log
 import com.google.gson.Gson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -17,211 +19,148 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
-import okio.IOException
-import kotlin.math.pow
-import kotlin.time.Duration.Companion.milliseconds
+import java.io.IOException
 
-class NetworkManager(private val onEventRaceived: (GameEvent) -> Unit): WebSocketListener(){
-
-    private var webSocket: WebSocket? = null
+class NetworkManager(
+    private val client: OkHttpClient = OkHttpClient(),
+    private val baseUrl: HttpUrl = "${if (BuildConfig.USE_TLS) "https" else "http"}://${BuildConfig.SERVER_HOST}/".toHttpUrl(),
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    private val retryDelayMillis: (Int) -> Long = { attempt -> minOf(1_000L shl attempt.coerceAtMost(5), 30_000L) },
+    private val onEventReceived: (GameEvent) -> Unit
+) {
+    private data class Target(val roomId: String, val username: String, val playerId: String)
     private val gson = Gson()
-
-    private val client = OkHttpClient()
-    private val serverUrl = BuildConfig.SERVER_HOST
-    private val httpScheme = if(BuildConfig.USE_TLS) "https" else "http"
-    private val wsScheme = if(BuildConfig.USE_TLS) "wss" else "ws"
-
-
+    private var webSocket: WebSocket? = null
+    private var target: Target? = null
+    private var generation = 0L
+    private var reconnectJob: Job? = null
+    private var reconnectAttempts = 0
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
-    val connectionState : StateFlow<ConnectionState> = _connectionState
+    val connectionState = _connectionState.asStateFlow()
+    private val _connectionError = MutableStateFlow<String?>(null)
+    val connectionError = _connectionError.asStateFlow()
 
-    var reconnectAttempts = 0
+    suspend fun createRoom(username: String, playerId: String): String? = requestRoom("create", username, playerId)
+    suspend fun quickJoinRoom(playerId: String, username: String): String? = requestRoom("quickjoin", username, playerId)
 
-    private var lastRoomId = ""
-    private var lastPlayerId = ""
-    private var lastUsername = ""
-
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    // creating room,
-    // the server will automatically general the room ID , 4-6 char string
-    suspend fun createRoom(username: String, playerId: String): String?{
-        return withContext(Dispatchers.IO){
-
-            val requestUrl = "$httpScheme://$serverUrl/create"
-
-            val jsonBody = gson.toJson(mapOf("username" to username, "playerId" to playerId))
-            val requestBody = jsonBody.toRequestBody("application/json; charset=utf-8".toMediaType())
-
-            val request = Request.Builder()
-                .url(requestUrl)
-                .post(requestBody)
-                .build()
-
-            try {
-                val response = client.newCall(request).execute()
-                if(response.isSuccessful) {
-
-                    val generatedRoomId = response.body.string()
-
-                    Log.d("Network Manger", "server generated rom ID: $generatedRoomId")
-                    return@withContext generatedRoomId
-                }
-                else {
-                    Log.e("network Manger", "Failed to create room. Code : ${response.code})")
-                    return@withContext null
-                }
-            }catch (e: IOException){
-                Log.e("Network Manger", "HTTP error createing room", e)
-                return@withContext null
-            }
-        }
-    }
-
-
-    // open the connection
-// Add playerId to the parameters
-    fun connect(roomId: String, username: String, playerId: String){
-
-        lastRoomId = roomId
-        lastPlayerId = playerId
-        lastUsername = username
-        // Attach &playerId=$playerId to the end of the URL
-        val url = "$wsScheme://$serverUrl/ws?roomId=$roomId&username=$username&playerId=$playerId"
-
-        val request = Request.Builder().url(url).build()
-
-        webSocket = client.newWebSocket(request, this)
-
-
-        _connectionState.value = ConnectionState.CONNECTING
-
-        Log.d("Network Manager", "connecting to $url ...")
-    }
-
-    // send data to server
-    fun sendEvent(event: GameEvent){
-        val jsonString = gson.toJson(event)
-        webSocket?.send(jsonString)
-    }
-
-    // receive data from go server
-    override fun onMessage(webSocket: WebSocket, text: String) {
-        Log.d("Network Manager", "Raw json received $text")
+    private suspend fun requestRoom(endpoint: String, username: String, playerId: String): String? = withContext(Dispatchers.IO) {
         try {
-            val event = gson.fromJson(text,GameEvent::class.java)
-            onEventRaceived(event)
-        }catch(e: Exception){
-            Log.e("Network Manager", "Failed to parse JsON $text", e)
-        }
-    }
-
-    override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-        _connectionState.value = ConnectionState.DISCONNECTED
-
-        Log.e("Network Manager", "Weboscket Error:", t)
-
-        reconnectWithDelay()
-
-    }
-
-    fun reconnectWithDelay(){
-        if(lastRoomId.isEmpty()) return
-
-        val delaySeconds = minOf(2.0.pow(reconnectAttempts).toLong(), 30L)
-        reconnectAttempts++
-        Log.d("NetworkMANAGER,", "Reconnecting in ${delaySeconds}s (attemps $reconnectAttempts)")
-        _connectionState.value = ConnectionState.CONNECTING
-
-        scope.launch{
-            delay((delaySeconds*1000).milliseconds)
-            val checkRoomExists = checkRoomExists(lastRoomId)
-            connect(lastRoomId, lastUsername, lastPlayerId )
-        }
-    }
-
-    private suspend fun checkRoomExists(roomId: String): Boolean {
-        return withContext(Dispatchers.IO) {
-            try {
-                val jsonBody = gson.toJson(mapOf(
-                    "roomId" to roomId,
-                    "username" to lastUsername,
-                    "playerId" to lastPlayerId
-                ))
-                val request = Request.Builder()
-                    .url("$httpScheme://$serverUrl/join")
-                    .post(jsonBody.toRequestBody("application/json".toMediaType()))
-                    .build()
-                val response = client.newCall(request).execute()
-                response.isSuccessful
-            } catch (e: Exception) {
-                false
+            client.newCall(roomRequest(endpoint, mapOf("username" to username, "playerId" to playerId))).execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
+                response.body.string().trim().takeIf { it.matches(Regex("[A-Z0-9]{5}")) }
             }
-        }
+        } catch (_: IOException) { null }
     }
 
-    override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-        Log.e("Network Managerr", "Connection closed: $reason")
-        _connectionState.value = ConnectionState.DISCONNECTED
-        if(code != 1000){
-            reconnectWithDelay()
-        }
+    suspend fun canJoin(roomId: String, username: String, playerId: String): Boolean =
+        joinStatus(Target(roomId, username, playerId)) in 200..299
+
+    private fun roomRequest(endpoint: String, fields: Map<String, String>): Request = Request.Builder()
+        .url(baseUrl.newBuilder().addPathSegment(endpoint).build())
+        .post(gson.toJson(fields).toRequestBody("application/json; charset=utf-8".toMediaType()))
+        .build()
+
+    private suspend fun joinStatus(destination: Target): Int? = withContext(Dispatchers.IO) {
+        try {
+            client.newCall(roomRequest("join", mapOf("roomId" to destination.roomId,
+                "username" to destination.username, "playerId" to destination.playerId))).execute().use { it.code }
+        } catch (_: IOException) { null }
     }
 
-    override fun onOpen(webSocket: WebSocket, response: Response) {
-        _connectionState.value = ConnectionState.CONNECTED
+    @Synchronized
+    fun connect(roomId: String, username: String, playerId: String) {
+        disconnect()
+        target = Target(roomId, username, playerId)
         reconnectAttempts = 0
-        Log.d("NEtworkManager", "Connected")
+        _connectionError.value = null
+        openSocket(ConnectionState.CONNECTING)
     }
 
+    // All socket callbacks and session changes share this monitor. A callback
+    // from an old connection must not change state or deliver old room events.
+    private fun openSocket(state: ConnectionState) {
+        val destination = target ?: return
+        val epoch = ++generation
+        reconnectJob = null
+        _connectionState.value = state
+        val request = Request.Builder().url(baseUrl.newBuilder().addPathSegment("ws")
+            .addQueryParameter("roomId", destination.roomId)
+            .addQueryParameter("username", destination.username)
+            .addQueryParameter("playerId", destination.playerId).build()).build()
+        webSocket = client.newWebSocket(request, object : WebSocketListener() {
+            override fun onOpen(webSocket: WebSocket, response: Response) = synchronized(this@NetworkManager) {
+                if (epoch != generation) { webSocket.cancel(); return@synchronized }
+                reconnectAttempts = 0
+                _connectionState.value = ConnectionState.CONNECTED
+            }
+
+            override fun onMessage(webSocket: WebSocket, text: String) = synchronized(this@NetworkManager) {
+                if (epoch != generation) return@synchronized
+                val event = try { gson.fromJson(text, GameEvent::class.java) } catch (_: RuntimeException) { null }
+                if (event?.type != null) onEventReceived(event)
+            }
+
+            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                webSocket.close(code, reason)
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) = synchronized(this@NetworkManager) {
+                if (epoch != generation) return@synchronized
+                this@NetworkManager.webSocket = null
+                if (code == 1000 || code == 1008) stopReconnecting() else scheduleReconnect()
+            }
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) = synchronized(this@NetworkManager) {
+                if (epoch != generation) return@synchronized
+                this@NetworkManager.webSocket = null
+                if (response?.code in listOf(400, 404, 409)) stopReconnecting() else scheduleReconnect()
+            }
+        })
+    }
+
+    private fun stopReconnecting() {
+        target = null
+        reconnectJob?.cancel()
+        reconnectJob = null
+        _connectionState.value = ConnectionState.DISCONNECTED
+        _connectionError.value = "This room is full or no longer available. Leave and join another room."
+    }
+
+    private fun scheduleReconnect() {
+        val destination = target ?: return
+        if (reconnectJob?.isActive == true) return
+        val epoch = generation
+        val wait = retryDelayMillis(reconnectAttempts++)
+        _connectionState.value = ConnectionState.RECONNECTING
+        reconnectJob = scope.launch {
+            delay(wait)
+            val status = joinStatus(destination)
+            synchronized(this@NetworkManager) {
+                if (epoch != generation || target != destination) return@synchronized
+                if (status in listOf(400, 404, 409)) stopReconnecting()
+                else openSocket(ConnectionState.RECONNECTING)
+            }
+        }
+    }
+
+    @Synchronized
+    fun sendEvent(event: GameEvent, onSent: () -> Unit = {}): Boolean {
+        val sent = webSocket?.send(gson.toJson(event)) == true
+        if (sent) onSent()
+        return sent
+    }
+
+    @Synchronized
     fun disconnect() {
-        try {
-            // 1000 indicates a normal, intentional closure
-            val closed = webSocket?.close(1000, "User disconnected") ?: false
-            if (!closed) {
-                webSocket?.cancel()
-            }
-        } catch (e: Exception) {
-            Log.e("Network Manager", "Error while closing WebSocket", e)
-            webSocket?.cancel()
-        } finally {
-            webSocket = null
-        }
+        generation++
+        target = null
+        reconnectJob?.cancel()
+        reconnectJob = null
+        val old = webSocket
+        webSocket = null
+        old?.close(1000, "User disconnected")
+        old?.cancel()
+        _connectionState.value = ConnectionState.DISCONNECTED
+        _connectionError.value = null
     }
-
-    suspend fun quickJoinRoom(playerId: String, username: String):String? {
-            Log.d("Host URL ", serverUrl)
-        return withContext(Dispatchers.IO){
-
-            val requestUrl = "$httpScheme://$serverUrl/quickjoin"
-
-            val jsonBody = gson.toJson(mapOf("username" to username, "playerId" to playerId))
-            val requestBody = jsonBody.toRequestBody("application/json; charset=utf-8".toMediaType())
-
-            val request = Request.Builder()
-                .url(requestUrl)
-                .post(requestBody)
-                .build()
-
-            try {
-                val response = client.newCall(request).execute()
-                if(response.isSuccessful) {
-
-                    val generatedRoomId = response.body.string()
-
-                    Log.d("Network Manger", "server generated rom ID: $generatedRoomId")
-                    return@withContext generatedRoomId
-                }
-                else {
-                    Log.e("network Manger", "Failed to create room. Code : ${response.code})")
-                    return@withContext null
-                }
-            }catch (e: IOException){
-                Log.e("Network Manger", "HTTP error createing room", e)
-                return@withContext null
-            }
-        }
-
-    }
-
-
 }

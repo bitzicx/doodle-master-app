@@ -3,7 +3,6 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     id("com.google.dagger.hilt.android")
     id("com.google.devtools.ksp")
-    kotlin("plugin.serialization") version "1.9.0"
 }
 
 android {
@@ -41,16 +40,23 @@ android {
 
     buildTypes {
         debug{
-            buildConfigField("String", "SERVER_HOST", "\"192.168.100.239:8080\"")
+            val host = providers.gradleProperty("serverHost").orElse("10.0.2.2:8080").get()
+            val literal = host.replace("\\", "\\\\").replace("\"", "\\\"")
+            buildConfigField("String", "SERVER_HOST", "\"$literal\"")
             buildConfigField("boolean", "USE_TLS", "false")
         }
         release {
             buildConfigField("String", "SERVER_HOST", "\"doodlemaster-backend.onrender.com\"")
             buildConfigField("boolean", "USE_TLS", "true")
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName("release").takeIf { it.storeFile != null }
             optimization {
                 enable = true
             }
+        }
+    }
+    testOptions {
+        unitTests.all {
+            it.systemProperty("backendUrl", providers.gradleProperty("backendUrl").orNull ?: "")
         }
     }
     compileOptions {
@@ -108,6 +114,6 @@ dependencies {
     // Extension to decode and render scalable vectors (SVGs) smoothly
     implementation("io.coil-kt:coil-svg:2.7.0")
 
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
+    testImplementation("com.squareup.okhttp3:mockwebserver:5.5.0")
 
 }

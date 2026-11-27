@@ -1,18 +1,20 @@
 package com.bitzicx.doodlemaster
 
-import android.provider.MediaStore
+import androidx.annotation.Keep
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import com.google.gson.JsonObject
 import com.google.gson.annotations.SerializedName
 
 
+@Keep
 data class ReleaseResponse(
     @SerializedName("tag_name") val tagName: String,
     val body: String?,
     val assets: List<ReleaseAsset>
 )
 
+@Keep
 data class ReleaseAsset(
     val name: String,
     @SerializedName("browser_download_url") val downloadUrl: String
@@ -30,12 +32,14 @@ data class DrawnPath(
     val strokeWidth: Float = 10f
 )
 
+@Keep
 enum class RoomStatus(val value: String) {
     @SerializedName("waiting") WAITING("waiting"),
     @SerializedName("started") STARTED("started"),
     @SerializedName("finished") FINISHED("finished")
 }
 
+@Keep
 enum class EventType(val value: String) {
     @SerializedName("draw") DRAW("draw"),
     @SerializedName("chat") CHAT("chat"),
@@ -54,6 +58,7 @@ enum class EventType(val value: String) {
 }
 
 
+@Keep
 data class GameEvent(
     val type: EventType,
     @SerializedName("sender_id") val senderId: String = "",
@@ -69,6 +74,7 @@ data class Chat(
 
 
 
+@Keep
 data class Player(
     val id: String,
     val username: String,
@@ -77,40 +83,24 @@ data class Player(
 
 
 
+// Defaults cover fields omitted by the Go backend (the secret word is never
+// included in room state; it arrives only in the drawer's turn_start event).
+@Keep
 data class BaseRoom(
-    val id: String,
-    val type: String,
-    val host: String,
-    val status: RoomStatus,
-    val players: Map<String, Player>,
-
-    @SerializedName("current_turn")
-    val currentTurn: String,
-
-    @SerializedName("current_word")
-    val currentWord : String,
-
-
-    @SerializedName("word_mask")
-    val wordMask : String,
-
-    val round: Int,
-
-    @SerializedName("started_at")
-    val startedAt: Long,
-
-    @SerializedName("guessed_by")
-    val guessedBy : Map<String, Boolean>,
-
-    val scores : Map<String, Int>,
-
-    @SerializedName("turn_order")
-    val turnOrder : List<String>,
-
-    val usernames : Map<String, String>
-
-
+    val id: String = "",
+    val type: String = "",
+    val host: String = "",
+    val status: RoomStatus = RoomStatus.WAITING,
+    val players: Map<String, Player> = emptyMap(),
+    @SerializedName("current_turn") val currentTurn: String = "",
+    @SerializedName("word_mask") val wordMask: String = "",
+    val round: Int = 0,
+    @SerializedName("started_at") val startedAt: Long = 0,
+    @SerializedName("guessed_by") val guessedBy: Map<String, Boolean> = emptyMap(),
+    val scores: Map<String, Int> = emptyMap(),
+    @SerializedName("turn_order") val turnOrder: List<String> = emptyList()
 )
+@Keep
 data class TurnStartPayload(
     @SerializedName("drawer_id")   val drawerId: String,
     @SerializedName("drawer_name") val drawerName: String,
@@ -120,6 +110,7 @@ data class TurnStartPayload(
 )
 
 // matches TurnEndPayload in Go
+@Keep
 data class TurnEndPayload(
     @SerializedName("word")       val word: String,
     @SerializedName("scores")     val scores: Map<String, Int>,
@@ -163,6 +154,7 @@ fun Color.toHex(): String {
     )
 }
 
+@Keep
 data class TimerPayload(
     @SerializedName("remaining") val remaining: Int
 )

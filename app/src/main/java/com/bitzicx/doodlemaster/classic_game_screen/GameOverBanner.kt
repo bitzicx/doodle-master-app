@@ -36,7 +36,8 @@ import kotlin.collections.component2
 @Composable
 fun GameOverBanner(
     roomState: BaseRoom,
-    turnEndPayload: TurnEndPayload,
+    scores: Map<String, Int>,
+    playerNames: Map<String, String>,
     onBack: () -> Unit,
     onOk: () -> Unit,
     modifier: Modifier = Modifier
@@ -74,7 +75,7 @@ fun GameOverBanner(
                     .heightIn(max = 240.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val sortedPlayers = turnEndPayload.scores.entries.sortedByDescending { it.value }
+                val sortedPlayers = scores.entries.sortedByDescending { it.value }
 
                 items(sortedPlayers) { (playerId, score) ->
                     Row(
@@ -106,7 +107,7 @@ fun GameOverBanner(
 
                             // Username
                             Text(
-                                text = roomState.players[playerId]?.username ?: "",
+                                text = playerNames[playerId] ?: roomState.players[playerId]?.username ?: "Player left",
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurface

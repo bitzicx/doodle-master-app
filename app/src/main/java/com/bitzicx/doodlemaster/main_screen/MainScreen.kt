@@ -1,6 +1,8 @@
 package com.bitzicx.doodlemaster.main_screen
 
-import android.util.Log
+import java.util.Locale
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -53,26 +55,17 @@ fun MainScreen(
     onNavigateToGameScreen: () -> Unit
 ) {
 
-    LaunchedEffect(Unit) {
-        viewModel.roomCreatedEvent.collect { newRoomId ->
-            if (newRoomId != null) {
-                viewModel.joinRoom(newRoomId)
-                onNavigateToGameScreen()
-            } else {
-                Log.d("MainScreen", "Failed to create room")
-            }
-        }
-    }
-
-
-
-    val username by viewModel.username.collectAsStateWithLifecycle(initialValue = null)
-    val playerId = viewModel.playerId
-
+    val isJoining by viewModel.isJoining.collectAsStateWithLifecycle()
+    val joinError by viewModel.joinError.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
     var showJoinDialog by remember { mutableStateOf(false) }
-    var showSearchDialog by remember {mutableStateOf(false)}
-    var roomid: String by remember { mutableStateOf("") }
 
+    LaunchedEffect(viewModel) {
+        viewModel.roomCreatedEvent.collect { onNavigateToGameScreen() }
+    }
+    LaunchedEffect(joinError) {
+        joinError?.let { snackbar.showSnackbar(it) }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
 
@@ -94,8 +87,6 @@ fun MainScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center) {
 
-                Text(roomid,
-                    color = Color.Black)
                 Spacer(modifier = Modifier.height(10.dp))
 
                 PillMenuButton(
@@ -104,7 +95,6 @@ fun MainScreen(
                     icon = Icons.Default.Bolt
 
                 ) {
-                    showSearchDialog = true
                     viewModel.quickJoinRoom()
                 }
 
@@ -180,22 +170,15 @@ fun MainScreen(
                     onDismiss = { showJoinDialog = false },
                     onJoin = { roomCode ->
                         viewModel.joinRoom(roomCode)
-                        onNavigateToGameScreen()
                         showJoinDialog = false
                     }
                 )
             }
 
-            if(showSearchDialog){
-                SearchingRoomDialog(
-                    onDismiss = {showSearchDialog = false},
-                    onJoin = {roomCode ->
-                        viewModel.joinRoom(roomCode)
-                        showJoinDialog = false
-
-                    }
-                )
+            if (isJoining) {
+                SearchingRoomDialog(onDismiss = viewModel::cancelJoin)
             }
+            SnackbarHost(snackbar, modifier = Modifier.align(Alignment.TopCenter))
 
         }
 
@@ -216,9 +199,9 @@ fun JoinRoomDialog(
             OutlinedTextField(
                 value = roomCode,
                 onValueChange = {
-                    roomCode = it.uppercase().take(5)
+                    roomCode = it.uppercase(Locale.ROOT).filter { ch -> ch in 'A'..'Z' || ch in '0'..'9' }.take(5)
                 },
-                label = { Text("Enter 5-Letter Code") },
+                label = { Text("Enter 5-Character Code") },
                 singleLine = true
             )
         },
@@ -241,13 +224,12 @@ fun JoinRoomDialog(
 
 @Composable
 fun SearchingRoomDialog(
-    onDismiss: () -> Unit,
-    onJoin: (String) -> Unit
+    onDismiss: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(text = "Searching Available Room")
+            Text(text = "Joining Room")
         },
         text = {
             Column(

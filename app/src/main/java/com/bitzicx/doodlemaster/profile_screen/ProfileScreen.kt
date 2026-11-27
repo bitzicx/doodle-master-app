@@ -122,9 +122,10 @@ fun ProfileContent(
             confirmButton = {
                 Button(
                     onClick = {
-                        onUsernameChange(editedUsername)
+                        onUsernameChange(editedUsername.trim())
                         showDialog = false
-                    }
+                    },
+                    enabled = editedUsername.isNotBlank()
                 ) {
                     Text("Save")
                 }

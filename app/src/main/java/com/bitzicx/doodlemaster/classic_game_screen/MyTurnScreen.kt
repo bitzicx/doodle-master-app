@@ -41,7 +41,6 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,17 +61,17 @@ import com.bitzicx.doodlemaster.Chat
 fun MyTurnScreen(
     playersList: List<Player>,
     currentWord: String,
+    paths: List<DrawnPath>,
     remainingTime: Int,
-    messages: SnapshotStateList<Chat>,
+    messages: List<Chat>,
+    enabled: Boolean = true,
     onUndo:() -> Unit,
     onClear:() ->Unit,
     returnPath: (DrawnPath) -> Unit
 
 ) {
 
-    val paths = remember { mutableStateListOf<DrawnPath>() }
     var currentPath by remember { mutableStateOf<Path?>(null) }
-    var lastPath by remember {mutableStateOf<Path?>(null)}
     var currentColor by remember { mutableStateOf(Color.Black) }
     var currentStrokeWidth by remember { mutableFloatStateOf(10f) }
     val listState = rememberLazyListState()
@@ -151,7 +150,8 @@ fun MyTurnScreen(
                         .fillMaxSize()
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color.White)
-                        .pointerInput(Unit) {
+                        .pointerInput(enabled) {
+                            if (!enabled) return@pointerInput
                             detectDragGestures(
                                 onDragStart = { offset ->
                                     currentPoints.clear()
@@ -185,10 +185,8 @@ fun MyTurnScreen(
                                             color = currentColor,
                                             strokeWidth = currentStrokeWidth
                                         )
-                                        paths.add(drawnPath)
                                         returnPath(drawnPath)   // send normalized points
 
-                                        lastPath = currentPath
                                         currentPath = null
                                         currentPoints.clear()
                                     }
@@ -312,9 +310,8 @@ fun MyTurnScreen(
                     )
                 }
 
-                IconButton(onClick = {
+                IconButton(enabled = enabled && paths.isNotEmpty(), onClick = {
                     if(paths.isNotEmpty()){
-                        paths.removeAt(paths.size -1)
                         onUndo()
                     }
                 }) {
@@ -323,8 +320,7 @@ fun MyTurnScreen(
                         contentDescription = "Undo"
                     )
                 }
-                IconButton(onClick = {
-                    paths.clear()
+                IconButton(enabled = enabled, onClick = {
                     currentPath = null
                     currentPoints.clear()
                     onClear()

@@ -25,18 +25,20 @@ class UserRepository @Inject constructor(
     }
 
     suspend fun ensurePlayerIdExists(): String{
-        val existing = playerId.first()
-        if(existing != null) return existing
-        val newId = UUID.randomUUID().toString()
-        context.userDataStore.edit{preferences ->
-            preferences[UserPreferenceKeys.PLAYER_ID] = newId
+        var id = ""
+        context.userDataStore.edit { preferences ->
+            id = preferences[UserPreferenceKeys.PLAYER_ID]?.takeIf { it.isNotBlank() }
+                ?: UUID.randomUUID().toString()
+            preferences[UserPreferenceKeys.PLAYER_ID] = id
         }
-        return newId
+        return id
     }
 
     suspend fun setUsername(newUsername: String){
+        val trimmed = newUsername.trim()
+        if (trimmed.isBlank()) return
         context.userDataStore.edit{preferences->
-            preferences[UserPreferenceKeys.USERNAME] = newUsername
+            preferences[UserPreferenceKeys.USERNAME] = trimmed
         }
     }
 

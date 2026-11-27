@@ -116,18 +116,18 @@ fun WaitingRoomScreen(
 
 
 
-            if (roomState?.host.toString() == playerId) {
+            if (roomState.host == playerId) {
                 // Only the host sees the button
                 Box(
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.Center,
 
                 ){
-                    Button(onClick = {
+                    Button(enabled = playersList.size >= 2, onClick = {
                         onGameStart()
                     }
                     ) {
-                        Text("Start Game")
+                        Text(if (playersList.size >= 2) "Start Game" else "Need at least 2 players")
                     }
                 }
 

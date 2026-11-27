@@ -13,8 +13,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -29,59 +29,33 @@ import com.bitzicx.doodlemaster.EventType
 import com.bitzicx.doodlemaster.GameEvent
 import com.bitzicx.doodlemaster.RoomStatus
 import com.bitzicx.doodlemaster.toJsonObject
-import com.google.gson.Gson
-import kotlinx.serialization.json.JsonObject
+import com.google.gson.JsonObject
 
 @Composable
 fun GameRoomScreen(
     viewModel: GameRoomScreenViewModel = hiltViewModel(),
     onNavigateToMainScreen: () -> Unit
-){
-    val connectionState by viewModel.connectionState.collectAsState()
-
-    val roomState by viewModel.roomState.collectAsStateWithLifecycle()
-    val playersList = roomState?.players?.values?.toList() ?: emptyList()
+) {
+    val game by viewModel.gameState.collectAsStateWithLifecycle()
+    val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
+    val connectionError by viewModel.connectionError.collectAsStateWithLifecycle()
     val playerId by viewModel.playerId.collectAsStateWithLifecycle()
-    val scores = roomState?.scores ?: emptyMap()
-    val paths = viewModel.paths
-    val messages = viewModel.messages
-    val turnStart by viewModel.turnStartPayload.collectAsState()
-    val turnEnd by viewModel.turnEndPayload.collectAsState()
-    val remainingTime by viewModel.timer.collectAsState()
-
+    val room = game.room
+    val players = room?.players?.values?.toList().orEmpty()
+    val isDrawer = game.turnStart?.drawerId == playerId
+    val canPlay = connectionState == ConnectionState.CONNECTED && game.turnEnd == null &&
+        room?.status == RoomStatus.STARTED && !room.currentTurn.isBlank()
     var showExitDialog by remember { mutableStateOf(false) }
+    var showTurnStart by remember { mutableStateOf(false) }
+    var showTurnEnd by remember { mutableStateOf(false) }
 
-
-    var showTurnStartBanner by remember { mutableStateOf(false) }
-    var showTurnEndBanner by remember { mutableStateOf(false) }
-
-    var gameOver by remember { mutableStateOf(false) }
-
-    // handling back pressing
-    BackHandler {
-        showExitDialog = true
+    BackHandler { showExitDialog = true }
+    LaunchedEffect(game.turnSequence) {
+        showTurnEnd = false
+        showTurnStart = game.turnStart != null
     }
-
-    LaunchedEffect(roomState?.status) {
-        if (roomState?.status == RoomStatus.FINISHED) {
-            gameOver = true
-        }
-    }
-
-
-// Trigger when the turn starts
-    LaunchedEffect(turnStart) {
-        viewModel.clearPath()
-
-        if (roomState?.status == RoomStatus.STARTED && turnStart != null) {
-            showTurnStartBanner = true
-        }
-    }
-
-    LaunchedEffect(turnEnd) {
-        if (roomState?.status == RoomStatus.STARTED && turnEnd != null) {
-            showTurnEndBanner = true
-        }
+    LaunchedEffect(game.turnEnd) {
+        if (game.turnEnd != null) { showTurnStart = false; showTurnEnd = true }
     }
 
     if (showExitDialog) {
@@ -90,181 +64,76 @@ fun GameRoomScreen(
             title = { Text("Leave game?") },
             text = { Text("Are you sure you want to leave the current game?") },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        showExitDialog = false
-                        viewModel.disconnect()
-                        onNavigateToMainScreen()
-                    }
-                ) {
-                    Text("Leave")
-                }
+                TextButton(onClick = { viewModel.disconnect(); onNavigateToMainScreen() }) { Text("Leave") }
             },
-            dismissButton = {
-                TextButton(onClick = { showExitDialog = false }) {
-                    Text("Stay")
-                }
-            }
+            dismissButton = { TextButton(onClick = { showExitDialog = false }) { Text("Stay") } }
         )
     }
 
-
-
-    Box(modifier = Modifier.fillMaxSize()) {
-
-
-        if (roomState?.status == RoomStatus.STARTED) {
-            val isDrawer = roomState?.currentTurn == playerId
-            if (isDrawer) {
-                MyTurnScreen(
-                    playersList,
-                    turnStart?.word.orEmpty(),
-                    remainingTime,
-                    messages,
-                    returnPath =  { path ->
-                        val event = GameEvent(
-                            type = EventType.DRAW,
-                            payload = path.toJsonObject()
-                        )
-                        viewModel.sendEvent(event)
-                    },
-                    onUndo = {
-                        val event = GameEvent(
-                            type = EventType.UNDO,
-                            payload = com.google.gson.JsonObject()
-                        )
-                        viewModel.sendEvent(event)
-
-                    },
-                    onClear = {
-                        val event = GameEvent(
-                            type = EventType.CLEAR,
-                            payload = com.google.gson.JsonObject()
-                        )
-                        viewModel.sendEvent(event)
-
-                    }
-                )
-            } else {
-                OtherPlayerTurnScreen(
-                    playersList,
-                    scores,
-                    roomState?.currentTurn.orEmpty(),
-                    remainingTime,
-                    paths,
-                    messages,
-                    roomState?.wordMask ?: ""
-
-                ) { message ->
-                    val event = GameEvent(
-                        type = EventType.CHAT,
-                        payload = message.toJsonObject()
+    Box(Modifier.fillMaxSize()) {
+        when (room?.status) {
+            RoomStatus.WAITING -> WaitingRoomScreen(room, playerId, viewModel::startGame)
+            RoomStatus.STARTED -> key(game.turnSequence) {
+                if (isDrawer) {
+                    MyTurnScreen(
+                        playersList = players,
+                        currentWord = game.turnStart?.word.orEmpty(),
+                        paths = game.paths,
+                        remainingTime = game.timer,
+                        messages = game.messages,
+                        enabled = canPlay,
+                        returnPath = { viewModel.sendEvent(GameEvent(EventType.DRAW, payload = it.toJsonObject())) },
+                        onUndo = { viewModel.sendEvent(GameEvent(EventType.UNDO, payload = JsonObject())) },
+                        onClear = { viewModel.sendEvent(GameEvent(EventType.CLEAR, payload = JsonObject())) }
                     )
-                    viewModel.sendEvent(event)
-                }
-            }
-        } else if(roomState?.status == RoomStatus.WAITING) {
-            WaitingRoomScreen(
-                roomState,
-                playerId
-            ){
-                viewModel.startGame()
-            }
-        }
-
-        ReadyBannerOverlay(
-            text = if (roomState?.currentTurn == playerId)
-                "Draw"
-            else "Guess ",
-            visible = showTurnStartBanner,
-            onFinished = { showTurnStartBanner = false }
-        )
-
-        ReadyBannerOverlay(
-            text = if (turnEnd?.guessedBy?.size == playersList.size - 1) "Everyone Guessed 🎉"
-            else if(remainingTime <= 1) "Time's Up"
-            else "Player Left"
-            ,
-            visible = showTurnEndBanner,
-            onFinished = { showTurnEndBanner = false },
-        )
-
-        if (gameOver) {
-            if (roomState != null && turnEnd != null) {
-                Box(
-                    modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center
-                ) {
-                    GameOverBanner(
-                        roomState = roomState!!,
-                        turnEndPayload = turnEnd!!,
-                        onBack = {
-                            gameOver = false
-                            viewModel.disconnect()
-                            onNavigateToMainScreen()
-                        },
-                        onOk = {
-                            gameOver = false
-                            viewModel.disconnect()
-                            onNavigateToMainScreen()
-                        }
+                } else {
+                    OtherPlayerTurnScreen(
+                        playersList = players,
+                        scores = room.scores,
+                        curentTurnPlayer = game.turnStart?.drawerId.orEmpty(),
+                        remainingTime = game.timer,
+                        paths = game.paths,
+                        messages = game.messages,
+                        wordMask = room.wordMask,
+                        enabled = canPlay && room.guessedBy[playerId] != true,
+                        onSendMessage = { viewModel.sendEvent(GameEvent(EventType.CHAT, payload = it.toJsonObject())) }
                     )
                 }
             }
-        }
-
-        ShowConnectionState(
-            connectionState = connectionState,
-            modifier = Modifier.align(Alignment.TopCenter)
-        )
-
-    }
-
-
-}
-
-@Composable
-fun ClearPath() {
-    TODO("Not yet implemented")
-}
-
-@Composable
-fun Clear() {
-    TODO("Not yet implemented")
-}
-
-@Composable
-fun ShowConnectionState(
-    connectionState: ConnectionState,
-    modifier: Modifier = Modifier
-) {
-    AnimatedVisibility(
-        visible = connectionState != ConnectionState.CONNECTED,
-        modifier = modifier
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    when (connectionState) {
-                        ConnectionState.RECONNECTING -> Color(0xFFFFA000)
-                        ConnectionState.DISCONNECTED -> Color(0xFFD32F2F)
-                        ConnectionState.CONNECTING   -> Color(0xFF1976D2)
-                        else -> Color.Transparent
-                    }
-                )
-                .padding(8.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = when (connectionState) {
-                    ConnectionState.RECONNECTING -> "Reconnecting..."
-                    ConnectionState.DISCONNECTED -> "No connection"
-                    ConnectionState.CONNECTING   -> "Connecting..."
-                    else -> ""
-                },
-                color = Color.White,
-                style = MaterialTheme.typography.bodySmall
+            RoomStatus.FINISHED -> GameOverBanner(
+                roomState = room,
+                scores = game.finalScores ?: room.scores,
+                playerNames = game.playerNames,
+                onBack = { viewModel.disconnect(); onNavigateToMainScreen() },
+                onOk = { viewModel.disconnect(); onNavigateToMainScreen() }
             )
+            null -> Text("Connecting to room...", modifier = Modifier.align(Alignment.Center))
+        }
+        if (room?.status == RoomStatus.STARTED) {
+            ReadyBannerOverlay(if (isDrawer) "Draw" else "Guess", showTurnStart) { showTurnStart = false }
+            ReadyBannerOverlay("The word was ${game.turnEnd?.word.orEmpty()}", showTurnEnd) { showTurnEnd = false }
+        }
+        ShowConnectionState(connectionState, Modifier.align(Alignment.TopCenter), connectionError)
+    }
+}
+
+@Composable
+fun ShowConnectionState(connectionState: ConnectionState, modifier: Modifier = Modifier, error: String? = null) {
+    AnimatedVisibility(connectionState != ConnectionState.CONNECTED, modifier = modifier) {
+        Box(
+            Modifier.fillMaxWidth().background(when (connectionState) {
+                ConnectionState.RECONNECTING -> Color(0xFFFFA000)
+                ConnectionState.DISCONNECTED -> Color(0xFFD32F2F)
+                ConnectionState.CONNECTING -> Color(0xFF1976D2)
+                else -> Color.Transparent
+            }).padding(8.dp), contentAlignment = Alignment.Center
+        ) {
+            Text(error ?: when (connectionState) {
+                ConnectionState.RECONNECTING -> "Reconnecting..."
+                ConnectionState.DISCONNECTED -> "No connection"
+                ConnectionState.CONNECTING -> "Connecting..."
+                else -> ""
+            }, color = Color.White, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
